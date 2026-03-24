@@ -1,9 +1,22 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { MoodCandlePreview } from "@/components/mood-candle-preview";
 import { loadAllRecords, type DiaryRecord } from "@/lib/diary-storage";
+
+const HistoryMoodCandleChart = dynamic(
+  () => import("@/components/history-mood-candle-chart"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[min(420px,55vh)] min-h-[280px] items-center justify-center rounded-lg border border-dashed border-zinc-800 bg-zinc-950/40 font-mono text-xs text-zinc-600">
+        加载图表…
+      </div>
+    ),
+  },
+);
 
 const labelClass = "font-mono text-[11px] uppercase tracking-wider text-zinc-500";
 
@@ -61,6 +74,11 @@ export default function HistoryPage() {
     return { streak, totalDays, avgClose, lastState };
   }, [records]);
 
+  const recordsAsc = useMemo(
+    () => [...records].sort((a, b) => a.date.localeCompare(b.date)),
+    [records],
+  );
+
   useEffect(() => {
     try {
       const all = loadAllRecords();
@@ -70,6 +88,17 @@ export default function HistoryPage() {
       setRecords([]);
     }
   }, []);
+
+  useEffect(() => {
+    if (!expandedDate) return;
+    const t = window.setTimeout(() => {
+      document.getElementById(`history-entry-${expandedDate}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }, 100);
+    return () => window.clearTimeout(t);
+  }, [expandedDate]);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
@@ -133,6 +162,22 @@ export default function HistoryPage() {
             </Link>
           </div>
         ) : (
+          <>
+            <section className="mb-10" aria-label="历史情绪K线图">
+              <p className={labelClass}>Mood · OHLC Series</p>
+              <h2 className="mt-2 text-lg font-medium text-zinc-200">历史情绪K线图</h2>
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-zinc-500">
+                按日期升序排列的连续蜡烛图；纵轴为 1–10 情绪区间。点击 K
+                线可在下方展开对应那天的详情。
+              </p>
+              <div className="mt-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset] sm:p-4">
+                <HistoryMoodCandleChart
+                  recordsAsc={recordsAsc}
+                  selectedDate={expandedDate}
+                  onSelectDate={setExpandedDate}
+                />
+              </div>
+            </section>
           <ul className="space-y-6">
             {records.map((rec) => {
               const title = rec.title.trim();
@@ -151,7 +196,7 @@ export default function HistoryPage() {
               }
 
               return (
-                <li key={rec.date}>
+                <li key={rec.date} id={`history-entry-${rec.date}`}>
                   <article
                     role="button"
                     tabIndex={0}
@@ -165,7 +210,7 @@ export default function HistoryPage() {
                     }}
                     className={`overflow-hidden rounded-xl border bg-zinc-900/40 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset] transition-[border-color,box-shadow] duration-200 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                       isOpen
-                        ? "border-zinc-600 ring-1 ring-emerald-500/15"
+                        ? "border-emerald-500/35 ring-1 ring-emerald-500/20"
                         : "cursor-pointer border-zinc-800/80 hover:border-zinc-700"
                     }`}
                   >
@@ -245,6 +290,7 @@ export default function HistoryPage() {
               );
             })}
           </ul>
+          </>
         )}
       </div>
     </div>
